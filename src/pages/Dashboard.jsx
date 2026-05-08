@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { fetchISSPosition, fetchPeopleInSpace, getReverseGeocode } from '../services/issService';
-import { fetchNews, searchNews } from '../services/newsService';
 import { calculateDistance, calculateSpeed } from '../utils/haversine';
 import ISSMap from '../components/ISSMap';
 import SpeedChart from '../components/SpeedChart';
@@ -12,19 +11,11 @@ import {
   Users, 
   MapPin, 
   Navigation, 
-  RefreshCw, 
-  Search, 
   TrendingUp, 
-  Newspaper,
-  Info,
-  Loader2
+  Loader2,
+  Info
 } from 'lucide-react';
-import { ToastContainer, toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
-import { Pie } from 'react-chartjs-2';
-import { Chart as ChartJS, ArcElement, Tooltip as ChartTooltip, Legend as ChartLegend } from 'chart.js';
-
-ChartJS.register(ArcElement, ChartTooltip, ChartLegend);
+import { Toaster, toast } from 'react-hot-toast';
 
 const Dashboard = () => {
   // ISS State
@@ -35,16 +26,8 @@ const Dashboard = () => {
   const [nearestPlace, setNearestPlace] = useState('Fetching...');
   const [astronauts, setAstronauts] = useState({ count: 0, people: [] });
   
-  // News State
-  const [news, setNews] = useState([]);
-  const [filteredNews, setFilteredNews] = useState([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [newsCategory, setNewsCategory] = useState('science');
-  const [isLoadingNews, setIsLoadingNews] = useState(false);
-  
   // Global State
   const [isInitialLoading, setIsInitialLoading] = useState(true);
-  const prevPositionRef = useRef(null);
 
   // 1. Initial Load & ISS Polling
   useEffect(() => {
@@ -59,8 +42,6 @@ const Dashboard = () => {
         
         const place = await getReverseGeocode(pos.latitude, pos.longitude);
         setNearestPlace(place);
-        
-        await loadNews();
         
         setIsInitialLoading(false);
       } catch (error) {
@@ -92,7 +73,6 @@ const Dashboard = () => {
 
         setTrajectory(t => [...t.slice(-14), newPos]);
         
-        // Update Place every minute or so to save API calls
         const place = await getReverseGeocode(newPos.latitude, newPos.longitude);
         setNearestPlace(place);
         
@@ -104,192 +84,165 @@ const Dashboard = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // 2. News Loading
-  const loadNews = async (force = false) => {
-    setIsLoadingNews(true);
-    try {
-      const articles = await fetchNews(newsCategory, force);
-      setNews(articles);
-      setFilteredNews(articles);
-    } catch (error) {
-      toast.error("Failed to fetch news.");
-    } finally {
-      setIsLoadingNews(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!isInitialLoading) loadNews();
-  }, [newsCategory]);
-
-  // 3. Search & Filter
-  const handleSearch = async (e) => {
-    e.preventDefault();
-    if (!searchQuery.trim()) {
-      setFilteredNews(news);
-      return;
-    }
-    setIsLoadingNews(true);
-    try {
-      const results = await searchNews(searchQuery);
-      setFilteredNews(results);
-    } catch (error) {
-      toast.error("Search failed.");
-    } finally {
-      setIsLoadingNews(false);
-    }
-  };
-
-  const sortNews = (type) => {
-    const sorted = [...filteredNews];
-    if (type === 'date') {
-      sorted.sort((a, b) => new Date(b.date) - new Date(a.date));
-    } else if (type === 'source') {
-      sorted.sort((a, b) => a.source.localeCompare(b.source));
-    }
-    setFilteredNews(sorted);
-  };
-
-  // Pie Chart Data (News Distribution by Category - simulation since we usually fetch one at a time)
-  const newsDistData = {
-    labels: ['Science', 'Technology', 'Space'],
-    datasets: [{
-      data: [12, 19, 3],
-      backgroundColor: ['#3b82f6', '#10b981', '#f59e0b'],
-      borderWidth: 0,
-    }]
-  };
-
   if (isInitialLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
         <div className="text-center">
           <Loader2 className="w-12 h-12 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600 dark:text-gray-400 font-medium">Launching Dashboard...</p>
+          <p className="text-gray-600 dark:text-gray-400 font-medium">Launching AstroDash...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors duration-300">
-      <ToastContainer position="top-right" theme="colored" />
+    <div className="min-h-screen bg-white dark:bg-gray-950 text-slate-900 dark:text-slate-100 transition-colors duration-500 font-['Outfit']">
+      <Toaster position="top-right" />
       
       {/* Navbar */}
-      <header className="sticky top-0 z-30 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-500/30">
-              <Navigation size={24} className="rotate-45" />
+      <header className="sticky top-0 z-40 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl border-b border-slate-200 dark:border-slate-800">
+        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-blue-500/20 transform hover:rotate-12 transition-transform cursor-pointer">
+              <Navigation size={28} className="rotate-45" />
             </div>
-            <h1 className="text-xl font-bold tracking-tight hidden sm:block">AstroDash</h1>
+            <div>
+              <h1 className="text-2xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-500 dark:from-blue-400 dark:to-indigo-300">
+                ASTRODASH
+              </h1>
+              <p className="text-[10px] uppercase tracking-[0.2em] font-bold text-slate-400 dark:text-slate-500">Live ISS Tracker</p>
+            </div>
           </div>
           
-          <div className="flex items-center gap-4">
-            <div className="text-right hidden md:block">
-              <p className="text-xs text-gray-500 uppercase font-bold">ISS Position</p>
-              <p className="text-sm font-mono">{issPosition.latitude.toFixed(4)}, {issPosition.longitude.toFixed(4)}</p>
+          <div className="flex items-center gap-6">
+            <div className="text-right hidden sm:block">
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                Live Signal
+              </div>
+              <p className="text-sm font-mono font-medium">{issPosition.latitude.toFixed(4)}, {issPosition.longitude.toFixed(4)}</p>
             </div>
             <ThemeToggle />
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-8 space-y-8">
+      <main className="max-w-7xl mx-auto px-6 py-10 space-y-12">
         
-        {/* ISS Tracking System - Modular Component */}
-        <section className="animate-in fade-in slide-in-from-bottom-4 duration-700">
+        {/* ISS Tracking System Header Card */}
+        <section className="animate-in fade-in slide-in-from-bottom-4 duration-1000">
           <ISSTracker />
         </section>
 
-        {/* Stats Row */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <StatCard 
-            icon={<MapPin className="text-blue-500" />} 
-            title="Nearest Place" 
-            value={nearestPlace} 
-            subValue={`Lat: ${issPosition.latitude.toFixed(2)} | Lon: ${issPosition.longitude.toFixed(2)}`}
-          />
-          <StatCard 
-            icon={<TrendingUp className="text-green-500" />} 
-            title="Current Speed" 
-            value={`${currentSpeed.toFixed(0)} km/h`} 
-            subValue="Average orbital velocity"
-          />
-          <StatCard 
-            icon={<Users className="text-purple-500" />} 
-            title="People in Space" 
-            value={astronauts.count} 
-            subValue={`${astronauts.people.slice(0, 2).map(p => p.name).join(', ')}...`}
-            onClick={() => toast.info(`Astronauts: ${astronauts.people.map(p => p.name).join(', ')}`)}
-          />
-        </div>
-
-        {/* Map & Speed Chart Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white dark:bg-gray-900 p-1 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-800">
-              <ISSMap position={issPosition} trajectory={trajectory} />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-               <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-800">
-                <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                  <TrendingUp size={20} className="text-blue-500" />
-                  Speed Trend
-                </h3>
-                <SpeedChart data={speedHistory} />
+        {/* Core Dashboard Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+          
+          {/* Left Column - Map & Charts (8/12) */}
+          <div className="lg:col-span-8 space-y-10">
+            
+            {/* Real-time Map Container */}
+            <div className="group relative bg-white dark:bg-slate-900 p-2 rounded-[2.5rem] shadow-2xl shadow-blue-500/5 border border-slate-100 dark:border-slate-800 transition-all hover:shadow-blue-500/10">
+              <div className="overflow-hidden rounded-[2rem]">
+                <ISSMap currentPosition={issPosition} trajectory={trajectory} />
               </div>
-              <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-800 flex flex-col items-center">
-                <h3 className="text-lg font-bold mb-4 flex items-center gap-2 self-start">
-                  <Info size={20} className="text-purple-500" />
-                  News Distribution
-                </h3>
-                <div className="h-[180px]">
-                  <Pie data={newsDistData} options={{ maintainAspectRatio: false }} />
+              <div className="absolute top-6 left-6 z-10">
+                <div className="px-4 py-2 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 flex items-center gap-3">
+                  <div className="w-3 h-3 bg-red-500 rounded-full animate-ping"></div>
+                  <span className="text-xs font-bold uppercase tracking-wider">Live Position</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Sub-stats Row */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+               <div className="bg-white dark:bg-slate-900 p-8 rounded-[2rem] shadow-xl border border-slate-100 dark:border-slate-800">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-lg font-bold flex items-center gap-2">
+                    <TrendingUp size={20} className="text-blue-500" />
+                    Speed Velocity
+                  </h3>
+                  <span className="text-2xl font-black text-blue-600 dark:text-blue-400">
+                    {currentSpeed.toFixed(0)} <span className="text-sm font-normal text-slate-400">km/h</span>
+                  </span>
+                </div>
+                <div className="h-[220px]">
+                  <SpeedChart data={speedHistory} />
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-br from-indigo-600 to-blue-700 p-8 rounded-[2rem] shadow-xl text-white relative overflow-hidden group">
+                <div className="relative z-10">
+                  <div className="p-3 bg-white/20 rounded-2xl w-fit mb-6">
+                    <MapPin size={24} />
+                  </div>
+                  <p className="text-indigo-100 text-sm font-medium uppercase tracking-widest mb-1">Current Proximity</p>
+                  <h3 className="text-3xl font-bold mb-4">{nearestPlace}</h3>
+                  <div className="flex items-center gap-4 text-xs font-mono text-indigo-100/70">
+                    <span>LAT: {issPosition.latitude.toFixed(2)}</span>
+                    <span>LON: {issPosition.longitude.toFixed(2)}</span>
+                  </div>
+                </div>
+                <div className="absolute -right-10 -bottom-10 opacity-10 group-hover:scale-110 transition-transform duration-700">
+                  <Navigation size={200} className="rotate-45" />
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Sidebar / People List */}
-          <div className="space-y-6">
-            <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-800">
-              <h3 className="text-lg font-bold mb-4 flex items-center justify-between">
-                Current Crew
-                <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-600 text-xs rounded-full">
-                  {astronauts.count} Online
-                </span>
-              </h3>
-              <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+          {/* Right Column - Crew & Info (4/12) */}
+          <div className="lg:col-span-4 space-y-10">
+            
+            {/* Astronaut List Card */}
+            <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] shadow-xl border border-slate-100 dark:border-slate-800 flex flex-col h-full max-h-[800px]">
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h3 className="text-xl font-bold">Orbital Crew</h3>
+                  <p className="text-xs text-slate-400 font-medium">Humans currently in space</p>
+                </div>
+                <div className="flex items-center justify-center w-12 h-12 bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-2xl font-bold">
+                  {astronauts.count}
+                </div>
+              </div>
+
+              <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar">
                 {astronauts.people.map((p, i) => (
-                  <div key={i} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
-                    <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-bold">
+                  <div key={i} className="group flex items-center gap-4 p-4 bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-transparent hover:border-blue-500/30 hover:bg-white dark:hover:bg-slate-800 transition-all duration-300">
+                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold shadow-lg shadow-blue-500/10">
                       {p.name.charAt(0)}
                     </div>
                     <div>
-                      <p className="text-sm font-bold">{p.name}</p>
-                      <p className="text-[10px] text-gray-500 uppercase tracking-widest">{p.craft}</p>
+                      <p className="font-bold group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{p.name}</p>
+                      <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-widest font-bold">{p.craft}</p>
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
-            
-            <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-6 rounded-2xl shadow-xl text-white">
-              <h3 className="font-bold mb-2">Did you know?</h3>
-              <p className="text-sm text-blue-100">
-                The ISS travels at about 28,000 km/h, meaning it circles the Earth once every 90 minutes.
-              </p>
+
+              <div className="mt-auto pt-8">
+                <div className="p-6 bg-slate-50 dark:bg-slate-800/60 rounded-3xl border border-slate-100 dark:border-slate-800">
+                  <h4 className="text-sm font-bold flex items-center gap-2 mb-2 text-slate-700 dark:text-slate-300">
+                    <Info size={16} className="text-blue-500" />
+                    Quick Fact
+                  </h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                    The ISS moves at 7.66 km per second. That's about 10 times faster than a bullet!
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* News Dashboard - Modular Component */}
-        <section className="animate-in fade-in slide-in-from-bottom-4 duration-1000">
+        {/* Full-width News Dashboard */}
+        <section className="animate-in fade-in slide-in-from-bottom-8 duration-1000 pt-10 border-t border-slate-200 dark:border-slate-800">
           <NewsDashboard />
         </section>
       </main>
 
+      {/* Floating AI Assistant */}
       <ChatBot dashboardData={{ 
         iss: { 
           latitude: issPosition.latitude, 
@@ -299,46 +252,24 @@ const Dashboard = () => {
           peopleCount: astronauts.count,
           peopleNames: astronauts.people.map(p => p.name)
         }, 
-        news: news.slice(0, 5) 
+        news: [] // Data now managed within NewsDashboard but component remains for AI context if needed
       }} />
 
-      <footer className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 py-8 mt-12">
-        <div className="max-w-7xl mx-auto px-4 text-center">
-          <p className="text-gray-500 text-sm">© 2026 AstroDash. Powered by NASA Open API & Mistral AI.</p>
+      <footer className="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 py-12">
+        <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
+          <div className="flex items-center gap-3 opacity-50 grayscale hover:grayscale-0 transition-all cursor-pointer">
+             <Navigation size={20} className="rotate-45" />
+             <span className="font-bold tracking-tighter">ASTRODASH</span>
+          </div>
+          <p className="text-slate-500 text-sm font-medium">© 2026 Space Tracking Systems. All rights reserved.</p>
+          <div className="flex gap-6 text-sm font-bold text-slate-400">
+            <a href="#" className="hover:text-blue-500 transition-colors">API Status</a>
+            <a href="#" className="hover:text-blue-500 transition-colors">Documentation</a>
+          </div>
         </div>
       </footer>
     </div>
   );
 };
-
-const StatCard = ({ icon, title, value, subValue, onClick }) => (
-  <div 
-    onClick={onClick}
-    className={`bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-800 hover:scale-[1.02] transition-transform duration-300 ${onClick ? 'cursor-pointer' : ''}`}
-  >
-    <div className="flex items-start justify-between mb-4">
-      <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
-        {icon}
-      </div>
-    </div>
-    <p className="text-sm text-gray-500 font-medium">{title}</p>
-    <h4 className="text-2xl font-bold tracking-tight">{value}</h4>
-    <p className="text-[10px] text-gray-400 mt-1 uppercase tracking-wider font-bold truncate">{subValue}</p>
-  </div>
-);
-
-const SkeletonCard = () => (
-  <div className="h-[400px] bg-white dark:bg-gray-900 rounded-xl overflow-hidden animate-pulse">
-    <div className="h-48 bg-gray-200 dark:bg-gray-800" />
-    <div className="p-4 space-y-4">
-      <div className="h-6 bg-gray-200 dark:bg-gray-800 rounded w-3/4" />
-      <div className="space-y-2">
-        <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded" />
-        <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded" />
-        <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded w-5/6" />
-      </div>
-    </div>
-  </div>
-);
 
 export default Dashboard;

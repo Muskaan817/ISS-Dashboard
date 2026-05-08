@@ -1,21 +1,35 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { fetchNews, searchNews } from '../services/newsService';
 import NewsCard from './NewsCard';
-import { Search, RefreshCw, Filter, Newspaper, Loader2 } from 'lucide-react';
-import { toast } from 'react-toastify';
+import { Search, RefreshCw, Newspaper, Info, Loader2 } from 'lucide-react';
+import { toast } from 'react-hot-toast';
+import { Doughnut } from 'react-chartjs-2';
+import { Chart as ChartJS, ArcElement, Tooltip as ChartTooltip, Legend as ChartLegend } from 'chart.js';
+
+ChartJS.register(ArcElement, ChartTooltip, ChartLegend);
+
+const CATEGORIES = ['science', 'technology', 'general'];
 
 const NewsDashboard = () => {
-  const [articles, setArticles] = useState([]);
+  const [allArticles, setAllArticles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [category, setCategory] = useState('science');
+  const [activeCategory, setActiveCategory] = useState(null); // null means show all
   const [sortBy, setSortBy] = useState('date');
+  const chartRef = useRef(null);
 
   const loadArticles = async (force = false) => {
     setLoading(true);
+    setActiveCategory(null);
+    setSearchQuery('');
     try {
-      const data = await fetchNews(category, force);
-      setArticles(data);
+      const promises = CATEGORIES.map(cat => fetchNews(cat, force));
+      const results = await Promise.all(promises);
+      // Flatten the array and remove duplicates just in case
+      const combined = results.flat();
+      const unique = Array.from(new Map(combined.map(item => [item.url, item])).values());
+      setAllArticles(unique);
+      if (force) toast.success("News feed updated!");
     } catch (error) {
       console.error(error);
       toast.error("Failed to load news articles.");
@@ -26,7 +40,7 @@ const NewsDashboard = () => {
 
   useEffect(() => {
     loadArticles();
-  }, [category]);
+  }, []);
 
   const handleSearch = async (e) => {
     e.preventDefault();
@@ -35,9 +49,10 @@ const NewsDashboard = () => {
       return;
     }
     setLoading(true);
+    setActiveCategory(null);
     try {
       const results = await searchNews(searchQuery);
-      setArticles(results);
+      setAllArticles(results);
     } catch (error) {
       toast.error("Search failed.");
     } finally {
@@ -45,7 +60,64 @@ const NewsDashboard = () => {
     }
   };
 
-  const sortedArticles = [...articles].sort((a, b) => {
+  // Calculate Distribution
+  const categoryCounts = CATEGORIES.reduce((acc, cat) => {
+    acc[cat] = allArticles.filter(a => a.category === cat).length;
+    return acc;
+  }, {});
+
+  const chartData = {
+    labels: CATEGORIES.map(c => c.charAt(0).toUpperCase() + c.slice(1)),
+    datasets: [
+      {
+        data: CATEGORIES.map(c => categoryCounts[c] || 0),
+        backgroundColor: ['#3b82f6', '#10b981', '#f59e0b'],
+        hoverBackgroundColor: ['#2563eb', '#059669', '#d97706'],
+        borderWidth: 2,
+        borderColor: '#ffffff',
+        hoverOffset: 4,
+      },
+    ],
+  };
+
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'right',
+        labels: {
+          color: '#6b7280',
+          font: { family: 'Outfit', size: 12 }
+        }
+      },
+      tooltip: {
+        callbacks: {
+          label: (context) => ` ${context.label}: ${context.raw} articles`
+        }
+      }
+    },
+    onClick: (event, elements) => {
+      if (elements.length > 0) {
+        const index = elements[0].index;
+        const clickedCat = CATEGORIES[index];
+        // Toggle filter
+        setActiveCategory(prev => prev === clickedCat ? null : clickedCat);
+      }
+    },
+    onHover: (event, chartElement) => {
+      event.native.target.style.cursor = chartElement[0] ? 'pointer' : 'default';
+    }
+  };
+
+  // Filtering & Sorting
+  let displayedArticles = [...allArticles];
+  
+  if (activeCategory) {
+    displayedArticles = displayedArticles.filter(a => a.category === activeCategory);
+  }
+
+  displayedArticles.sort((a, b) => {
     if (sortBy === 'date') return new Date(b.date) - new Date(a.date);
     if (sortBy === 'source') return a.source.localeCompare(b.source);
     return 0;
@@ -53,6 +125,26 @@ const NewsDashboard = () => {
 
   return (
     <div className="space-y-8">
+      
+      {/* Chart Section */}
+      <div className="bg-white dark:bg-gray-900 p-6 rounded-3xl shadow-xl border border-gray-100 dark:border-gray-800">
+        <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+          <Info size={20} className="text-purple-500" />
+          News Distribution by Category
+        </h3>
+        <p className="text-xs text-gray-500 mb-6">Click on a section of the doughnut to filter articles below.</p>
+        
+        {loading ? (
+          <div className="h-[250px] flex items-center justify-center">
+            <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+          </div>
+        ) : (
+          <div className="h-[250px] w-full max-w-md mx-auto">
+             <Doughnut data={chartData} options={chartOptions} ref={chartRef} />
+          </div>
+        )}
+      </div>
+
       {/* Search and Filters */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-gray-900 p-6 rounded-3xl shadow-xl border border-gray-100 dark:border-gray-800">
         <div className="flex items-center gap-3">
@@ -60,8 +152,12 @@ const NewsDashboard = () => {
             <Newspaper size={24} />
           </div>
           <div>
-            <h2 className="text-xl font-bold">Space News</h2>
-            <p className="text-xs text-gray-500">Stay updated with latest discoveries</p>
+            <h2 className="text-xl font-bold">
+              {activeCategory ? `${activeCategory.charAt(0).toUpperCase() + activeCategory.slice(1)} News` : 'All Space News'}
+            </h2>
+            <p className="text-xs text-gray-500">
+              {activeCategory ? 'Filtered view (Click chart to reset)' : 'Stay updated with latest discoveries'}
+            </p>
           </div>
         </div>
 
@@ -77,15 +173,14 @@ const NewsDashboard = () => {
             <Search className="absolute left-3.5 top-3 text-gray-400" size={18} />
           </form>
 
-          <select
-            className="px-4 py-2.5 bg-gray-50 dark:bg-gray-800 border-none rounded-2xl text-sm focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer"
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-          >
-            <option value="science">Science</option>
-            <option value="technology">Technology</option>
-            <option value="general">General</option>
-          </select>
+          {activeCategory && (
+            <button 
+              onClick={() => setActiveCategory(null)}
+              className="px-4 py-2.5 bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400 font-bold text-xs rounded-2xl hover:bg-red-100 transition-colors"
+            >
+              Clear Filter
+            </button>
+          )}
 
           <div className="flex bg-gray-50 dark:bg-gray-800 p-1 rounded-2xl">
             <button
@@ -116,7 +211,7 @@ const NewsDashboard = () => {
       </div>
 
       {/* Articles Grid */}
-      {loading && articles.length === 0 ? (
+      {loading && allArticles.length === 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {[...Array(6)].map((_, i) => (
             <div key={i} className="h-[450px] bg-white dark:bg-gray-900 rounded-3xl animate-pulse overflow-hidden">
@@ -132,14 +227,14 @@ const NewsDashboard = () => {
             </div>
           ))}
         </div>
-      ) : articles.length === 0 ? (
+      ) : displayedArticles.length === 0 ? (
         <div className="text-center py-20 bg-white dark:bg-gray-900 rounded-3xl border border-dashed border-gray-200 dark:border-gray-800">
           <Newspaper size={48} className="mx-auto mb-4 text-gray-300" />
-          <p className="text-gray-500">No articles found. Try another search or category.</p>
+          <p className="text-gray-500">No articles found in this category.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {sortedArticles.slice(0, 10).map((article) => (
+          {displayedArticles.slice(0, 12).map((article) => (
             <NewsCard key={article.id} article={article} />
           ))}
         </div>
