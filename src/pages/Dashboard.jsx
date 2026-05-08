@@ -25,6 +25,7 @@ const Dashboard = () => {
   const [currentSpeed, setCurrentSpeed] = useState(0);
   const [nearestPlace, setNearestPlace] = useState('Fetching...');
   const [astronauts, setAstronauts] = useState({ count: 0, people: [] });
+  const [newsContext, setNewsContext] = useState([]);
   
   // Global State
   const [isInitialLoading, setIsInitialLoading] = useState(true);
@@ -42,6 +43,13 @@ const Dashboard = () => {
         
         const place = await getReverseGeocode(pos.latitude, pos.longitude);
         setNearestPlace(place);
+        
+        // Fetch news for AI context
+        try {
+          const { fetchNews } = await import('../services/newsService');
+          const articles = await fetchNews('general');
+          setNewsContext(articles.slice(0, 5));
+        } catch (e) { console.error('News context error:', e); }
         
         setIsInitialLoading(false);
       } catch (error) {
@@ -252,7 +260,7 @@ const Dashboard = () => {
           peopleCount: astronauts.count,
           peopleNames: astronauts.people.map(p => p.name)
         }, 
-        news: [] // Data now managed within NewsDashboard but component remains for AI context if needed
+        news: newsContext 
       }} />
 
       <footer className="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 py-12">

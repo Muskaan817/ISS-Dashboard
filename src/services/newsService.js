@@ -1,17 +1,16 @@
 import axios from 'axios';
 
-const API_KEY = import.meta.env.VITE_NEWS_API_KEY;
-const BASE_URL = 'https://newsapi.org/v2';
+const BASE_URL = 'https://api.spaceflightnewsapi.net/v4';
 
-const CACHE_KEY = 'news_dashboard_cache';
-const CACHE_EXPIRY = 15 * 60 * 1000; // 15 minutes in milliseconds
+const CACHE_KEY = 'astro_news_cache';
+const CACHE_EXPIRY = 10 * 60 * 1000; // 10 minutes
 
-export const fetchNews = async (category = 'science', forceRefresh = false) => {
-  if (!API_KEY) {
-    console.warn('News API Key is missing. Please add VITE_NEWS_API_KEY to your .env file.');
-    return [];
-  }
-
+/**
+ * Fetch articles from Spaceflight News API
+ * @param {string} category - Used for filtering or search
+ * @param {boolean} forceRefresh - Ignore cache
+ */
+export const fetchNews = async (category = 'general', forceRefresh = false) => {
   // Check cache
   if (!forceRefresh) {
     const cachedData = localStorage.getItem(`${CACHE_KEY}_${category}`);
@@ -24,25 +23,29 @@ export const fetchNews = async (category = 'science', forceRefresh = false) => {
   }
 
   try {
-    const response = await axios.get(`${BASE_URL}/top-headlines`, {
-      params: {
-        category,
-        language: 'en',
-        pageSize: 10,
-        apiKey: API_KEY,
-      },
-    });
+    const params = {
+      limit: 12,
+      ordering: '-published_at'
+    };
 
-    const articles = response.data.articles.map((article, index) => ({
-      id: `${category}-${index}`,
+    // Simulate categories with search terms if needed, 
+    // but SNAPI is already specific to space.
+    if (category !== 'general') {
+      params.search = category;
+    }
+
+    const response = await axios.get(`${BASE_URL}/articles/`, { params });
+
+    const articles = response.data.results.map((article) => ({
+      id: article.id.toString(),
       title: article.title,
-      source: article.source.name,
-      author: article.author || 'Unknown',
-      date: article.publishedAt,
-      image: article.urlToImage || 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&q=80&w=1000', // Default space image
-      description: article.description || 'No description available.',
+      source: article.news_site,
+      author: article.news_site, // SNAPI doesn't always have authors, using site name
+      date: article.published_at,
+      image: article.image_url,
+      description: article.summary || 'No description available.',
       url: article.url,
-      category,
+      category: category,
     }));
 
     // Update cache
@@ -53,36 +56,35 @@ export const fetchNews = async (category = 'science', forceRefresh = false) => {
 
     return articles;
   } catch (error) {
-    console.error('Error fetching news:', error);
+    console.error('Error fetching space news:', error);
     throw error;
   }
 };
 
+/**
+ * Search articles
+ */
 export const searchNews = async (query) => {
-  if (!API_KEY) return [];
-  
   try {
-    const response = await axios.get(`${BASE_URL}/everything`, {
+    const response = await axios.get(`${BASE_URL}/articles/`, {
       params: {
-        q: query,
-        language: 'en',
-        pageSize: 10,
-        apiKey: API_KEY,
+        search: query,
+        limit: 10,
       },
     });
 
-    return response.data.articles.map((article, index) => ({
-      id: `search-${index}`,
+    return response.data.results.map((article) => ({
+      id: article.id.toString(),
       title: article.title,
-      source: article.source.name,
-      author: article.author || 'Unknown',
-      date: article.publishedAt,
-      image: article.urlToImage || 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&q=80&w=1000',
-      description: article.description || 'No description available.',
+      source: article.news_site,
+      author: article.news_site,
+      date: article.published_at,
+      image: article.image_url,
+      description: article.summary || 'No description available.',
       url: article.url,
     }));
   } catch (error) {
-    console.error('Error searching news:', error);
+    console.error('Error searching space news:', error);
     return [];
   }
 };

@@ -46,6 +46,11 @@ const ISSMap = ({ currentPosition, trajectory }) => {
     ? [currentPosition.latitude, currentPosition.longitude] 
     : [0, 0];
 
+  const isDark = document.documentElement.classList.contains('dark');
+  const tileLayerUrl = isDark 
+    ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+    : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+
   return (
     <div className="w-full h-[500px] rounded-2xl overflow-hidden shadow-2xl border border-gray-200 dark:border-gray-800 transition-all duration-500">
       <MapContainer 
@@ -53,10 +58,11 @@ const ISSMap = ({ currentPosition, trajectory }) => {
         zoom={3} 
         scrollWheelZoom={true}
         className="w-full h-full"
+        key={isDark ? 'dark-map' : 'light-map'} // Re-render map when theme changes to update tiles
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          url={tileLayerUrl}
         />
 
         {/* Path Trajectory */}
