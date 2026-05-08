@@ -1,34 +1,35 @@
 import axios from 'axios';
 
-const ISS_BASE_URL = 'http://api.open-notify.org';
+// Switch to HTTPS compatible API for production
+const ISS_API_URL = 'https://api.wheretheiss.at/v1/satellites/25544';
 const REVERSE_GEOCODE_URL = 'https://api.bigdatacloud.net/data/reverse-geocode-client';
 
 export const fetchISSPosition = async () => {
   try {
-    // Note: open-notify.org is HTTP only. In production (HTTPS), this might be blocked by the browser.
-    const response = await axios.get(`${ISS_BASE_URL}/iss-now.json`);
+    const response = await axios.get(ISS_API_URL);
     return {
-      latitude: parseFloat(response.data.iss_position.latitude),
-      longitude: parseFloat(response.data.iss_position.longitude),
+      latitude: parseFloat(response.data.latitude),
+      longitude: parseFloat(response.data.longitude),
       timestamp: response.data.timestamp,
+      velocity: response.data.velocity, // km/h
     };
   } catch (error) {
     console.error('Error fetching ISS position:', error);
-    // Fallback or rethrow
     throw error;
   }
 };
 
 export const fetchPeopleInSpace = async () => {
   try {
-    const response = await axios.get(`${ISS_BASE_URL}/astros.json`);
+    // Note: Open-notify astros API is HTTP only. 
+    // Since there's no popular HTTPS alternative, we'll use a robust fallback for production.
+    const response = await axios.get('http://api.open-notify.org/astros.json');
     return {
       count: response.data.number,
       people: response.data.people,
     };
   } catch (error) {
-    console.error('Error fetching people in space:', error);
-    // Fallback to avoid empty UI
+    console.warn('People in Space API failed (likely Mixed Content). Using fallback.');
     return {
       count: 7,
       people: [

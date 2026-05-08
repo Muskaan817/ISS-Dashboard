@@ -66,15 +66,12 @@ const Dashboard = () => {
         const newPos = await fetchISSPosition();
         
         setIssPosition(prev => {
-          // Calculate Speed
-          if (prev.latitude !== 0) {
-            const distance = calculateDistance(prev.latitude, prev.longitude, newPos.latitude, newPos.longitude);
-            const timeDiff = newPos.timestamp - prev.timestamp; // in seconds
-            if (timeDiff > 0) {
-              const speed = calculateSpeed(distance, timeDiff);
-              setCurrentSpeed(speed);
-              setSpeedHistory(h => [...h.slice(-29), { timestamp: newPos.timestamp, speed }]);
-            }
+          // Calculate Speed or use API velocity
+          const speed = newPos.velocity || (prev.latitude !== 0 ? calculateSpeed(calculateDistance(prev.latitude, prev.longitude, newPos.latitude, newPos.longitude), newPos.timestamp - prev.timestamp) : 0);
+          
+          if (speed > 0) {
+            setCurrentSpeed(speed);
+            setSpeedHistory(h => [...h.slice(-29), { timestamp: newPos.timestamp, speed }]);
           }
           return newPos;
         });
@@ -137,11 +134,6 @@ const Dashboard = () => {
 
       <main className="max-w-7xl mx-auto px-6 py-10 space-y-12">
         
-        {/* ISS Tracking System Header Card */}
-        <section className="animate-in fade-in slide-in-from-bottom-4 duration-1000">
-          <ISSTracker />
-        </section>
-
         {/* Core Dashboard Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
           
